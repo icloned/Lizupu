@@ -120,10 +120,11 @@ function BranchPage({ go, selectedId }) {
 }
 
 function BranchesPage({ go }) {
-  const [selectedBranchId, setSelectedBranchId] = useState(null)
+  const [selectedBranchId, setSelectedBranchId] = useState(fifteenthGenerationNodes[fifteenthGenerationNodes.length - 1]?.id || null)
   const [expandedIds, setExpandedIds] = useState(() => new Set([genealogyTree.id]))
   const branchRoot = selectedBranchId ? genealogyNodeMap.get(selectedBranchId) : genealogyTree
   const isOverview = !selectedBranchId
+  const directLineage = nodePath(branchRoot.id).slice(-6)
   const treeGeneration = isOverview ? 1 : 15
   const treeLimit = isOverview ? 15 : sourceMeta.maxDepth
   useEffect(() => {
@@ -141,7 +142,7 @@ function BranchesPage({ go }) {
   const toggleBranchNode = (id, generation) => setExpandedIds((current) => {
     const next = new Set(current)
     const node = genealogyNodeMap.get(id)
-    const ids = generation >= 20 && node ? collectBranchIds(node) : [id]
+    const ids = generation >= 21 && node ? collectBranchIds(node) : [id]
     if (next.has(id)) ids.forEach((branchId) => next.delete(branchId))
     else ids.forEach((branchId) => next.add(branchId))
     return next
@@ -151,8 +152,8 @@ function BranchesPage({ go }) {
     <div className="branch-tabs" role="tablist" aria-label="支系选择">
       <div className="branch-overview-tab"><button className={isOverview ? 'active' : ''} onClick={() => setSelectedBranchId(null)} role="tab" aria-selected={isOverview}>总世系</button></div>
       <div className="branch-generation-tabs">{[...fifteenthGenerationNodes].reverse().map((node) => <button key={node.id} className={selectedBranchId === node.id ? 'active' : ''} onClick={() => setSelectedBranchId(node.id)} role="tab" aria-selected={selectedBranchId === node.id}>{formatPrimaryName(node.title)}</button>)}</div>
-    </div><div className="branch-scroll-hint">← 左右滑动查看更多 →</div>
-    <div className="page-content full-tree branch-tree"><p className="sample-note branch-label">{isOverview ? '一世至十五世' : `${formatPrimaryName(branchRoot.title)}支系`}</p><div className="branch-highlight-box"><TreeNode node={branchRoot} generation={treeGeneration} generationLimit={treeLimit} focusedNodeId={branchRoot.id} expandedIds={expandedIds} onToggle={toggleBranchNode} onFocusNode={() => {}} bulkExpandFromGeneration={20} /></div></div>
+    </div><div className="branch-scroll-hint">← 左右滑动查看更多 →</div><div className="branch-lineage-path" aria-label="当前支系直系">{directLineage.map((node, index) => <span key={node.id} className={index === directLineage.length - 1 ? 'current' : ''}>{formatPrimaryName(node.title)}{index < directLineage.length - 1 && <b>›</b>}</span>)}</div>
+    <div className="page-content full-tree branch-tree"><p className="sample-note branch-label">{isOverview ? '一世至十五世' : `${formatPrimaryName(branchRoot.title)}支系`}</p><div className="branch-highlight-box"><TreeNode node={branchRoot} generation={treeGeneration} generationLimit={treeLimit} focusedNodeId={branchRoot.id} expandedIds={expandedIds} onToggle={toggleBranchNode} onFocusNode={() => {}} bulkExpandFromGeneration={20} toggleOnName toggleOnGeneration={formatPrimaryName(branchRoot.title) === '长素'} /></div></div>
     <BottomNav active="branches" go={go} />
   </PageFrame>
 }
@@ -296,7 +297,7 @@ function TreePage({ go }) {
   return <PageFrame className="tree-page-shell full-tree-page"><Header title={sourceMeta.mapTitle} hideBack /><aside className={`generation-navigator ${activeGeneration >= 12 ? 'is-visible' : ''}`} aria-label="世代定位"><div className="generation-index-list">{generationWindow.map((generation) => <button key={generation} className={generation === activeGeneration ? 'active' : ''} onClick={() => focusGeneration(generation)}>{generationIndexLabel(generation)}</button>)}</div></aside><div className="page-content full-tree"><GenerationRuleNote /><TreeNode node={genealogyTree} generation={1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={focusNode} /></div><BottomNav active="home" go={go} /></PageFrame>
 }
 
-function TreeNode({ node, generation, generationLimit, focusedNodeId, inheritedMigration, expandedIds, onToggle, onFocusNode, bulkExpandFromGeneration }) {
+function TreeNode({ node, generation, generationLimit, focusedNodeId, inheritedMigration, expandedIds, onToggle, onFocusNode, bulkExpandFromGeneration, toggleOnName, toggleOnGeneration }) {
   const hasChildren = node.children.length > 0
   const hasVisibleChildren = hasChildren && generation < generationLimit
   const isExpanded = expandedIds.has(node.id)
@@ -310,7 +311,7 @@ function TreeNode({ node, generation, generationLimit, focusedNodeId, inheritedM
   const handleNameClick = (event) => {
     event.preventDefault()
     event.stopPropagation()
-    if ((focusedNodeId === node.id || (bulkExpandFromGeneration && generation >= bulkExpandFromGeneration)) && hasVisibleChildren) {
+    if ((toggleOnName || focusedNodeId === node.id || (bulkExpandFromGeneration && generation >= bulkExpandFromGeneration)) && hasVisibleChildren) {
       if (focusedNodeId !== node.id) onFocusNode?.(node.id)
       if (!isExpanded) centerExpandedNode(event.currentTarget)
       onToggle(node.id, generation)
@@ -324,9 +325,13 @@ function TreeNode({ node, generation, generationLimit, focusedNodeId, inheritedM
     onFocusNode?.(node.id)
     onToggle(node.id, generation)
   }
-  const nodeContent = <><span className="tree-generation">{generationLabel(generation)}</span><button className={`tree-person-name ${branchMigration ? 'is-migrated' : ''}`} type="button" onClick={handleNameClick}>{formatPersonName(node.title)}{migration && <span className="tree-migration">（{migration}）</span>}</button>{hasVisibleChildren && <sup className="tree-descendant-count">{node.children.length}</sup>}{hasVisibleChildren && <button className={`tree-toggle-button ${isExpanded ? 'is-collapse' : 'is-expand'}`} type="button" aria-label={`${formatPersonName(node.title)}后代`} onClick={handleToggleClick}>{isExpanded ? '-' : '+ 展开'}</button>}</>
+  const handleGenerationClick = (event) => {
+    if (!toggleOnGeneration || generation < 20 || !hasVisibleChildren) return
+    handleToggleClick(event)
+  }
+  const nodeContent = <><>{toggleOnGeneration && generation >= 20 ? <button className="tree-generation tree-generation-toggle" type="button" onClick={handleGenerationClick}>{generationLabel(generation)}</button> : <span className="tree-generation">{generationLabel(generation)}</span>}</><button className={`tree-person-name ${branchMigration ? 'is-migrated' : ''}`} type="button" onClick={handleNameClick}>{formatPersonName(node.title)}{migration && <span className="tree-migration">（{migration}）</span>}</button>{hasVisibleChildren && <sup className="tree-descendant-count">{node.children.length}</sup>}{hasVisibleChildren && <button className={`tree-toggle-button ${isExpanded ? 'is-collapse' : 'is-expand'}`} type="button" aria-label={`${formatPersonName(node.title)}后代`} onClick={handleToggleClick}>{isExpanded ? '-' : '+ 展开'}</button>}</>
   if (!hasVisibleChildren) return <div data-tree-generation={generation} className={`${className} tree-leaf`} style={style}><div className="tree-leaf-row">{nodeContent}</div></div>
-  return <details data-tree-generation={generation} open={expandedIds.has(node.id)} className={className} style={style}><summary className={focusedNodeId === node.id ? 'tree-family-summary' : ''} onClick={(event) => event.preventDefault()}>{nodeContent}</summary>{[...node.children].reverse().map((child) => <TreeNode key={child.id} node={child} generation={generation + 1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} inheritedMigration={branchMigration} expandedIds={expandedIds} onToggle={onToggle} onFocusNode={onFocusNode} bulkExpandFromGeneration={bulkExpandFromGeneration} />)}</details>
+  return <details data-tree-generation={generation} open={expandedIds.has(node.id)} className={className} style={style}><summary className={focusedNodeId === node.id ? 'tree-family-summary' : ''} onClick={(event) => event.preventDefault()}>{nodeContent}</summary>{[...node.children].reverse().map((child) => <TreeNode key={child.id} node={child} generation={generation + 1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} inheritedMigration={branchMigration} expandedIds={expandedIds} onToggle={onToggle} onFocusNode={onFocusNode} bulkExpandFromGeneration={bulkExpandFromGeneration} toggleOnName={toggleOnName} toggleOnGeneration={toggleOnGeneration} />)}</details>
 }
 
 function AnnotationsPage({ go }) { return <PageFrame><Header title="族谱注记" onBack={() => go('tree')} /><div className="page-content annotations-page"><p className="sample-note">共 {annotations.length} 条</p>{annotations.map((note) => <article key={note.id}><b>{note.title}</b></article>)}</div><BottomNav active="annotations" go={go} /></PageFrame> }

@@ -170,3 +170,88 @@
   .app-shell { width: min(100vw, 460px); }
   .bottom-nav { width: min(calc(100vw - 28px), 432px); }
 }
+
+/* Project genealogy palette — low-saturation rice paper, gold-brown and dark brown. */
+:root {
+  --paper: #F7EEDB;
+  --surface: #FFF9EF;
+  --surface-soft: #FBF1DF;
+  --ink: #5A2F1F;
+  --muted-ink: #9B7658;
+  --generation: #C99A5B;
+  --generation-ink: #FFF8EB;
+  --card-border: #C88952;
+  --tree-line: #C99A63;
+  --tree-dot: #B77A3F;
+  --accent: #B65A36;
+  --button-border: #B87949;
+  --button-ink: #6A3A27;
+  --group-border: #D7B184;
+  --divider: #E8D6B6;
+}
+html, body { background: var(--paper) !important; color: var(--ink) !important; }
+.app-shell, .tree-page-shell, .tree-page-shell .topbar, .tree-page-shell .bottom-nav, .full-tree,
+.home-hero, .branch-card, .section-heading, .nav-row, .line-node, .detail-list button,
+.result-list button, .migration-branch, .search-box, .search-entry { background: var(--paper) !important; color: var(--ink) !important; }
+.topbar, .tree-page-shell .topbar, .bottom-nav, .tree-page-shell .bottom-nav { border-color: var(--divider) !important; }
+.topbar h1, .icon-button, .tree-page-shell .topbar h1 { color: var(--ink) !important; }
+.page-content, .full-tree { background: var(--paper) !important; }
+button { color: var(--button-ink); }
+.bottom-nav button, .sample-note, .eyeline, .line-node small, .nav-row small, .migration-branch small,
+.result-list small, .empty, .home-hero p, .detail-list span, .tree-descendant-count { color: var(--muted-ink) !important; }
+.bottom-nav .active, .tree-page-shell .bottom-nav .active, .breadcrumbs .current,
+.line-node.selected strong, .migration-list b { color: var(--accent) !important; }
+.section-heading span, .subsection-title { border-color: var(--accent) !important; }
+.search-entry, .search-box, .line-node, .branch-card, .migration-branch, .detail-list,
+.detail-list button, .result-list, .result-list button { border-color: var(--divider) !important; }
+.line-node.selected, .line-node:focus-visible { border-color: var(--card-border) !important; box-shadow: 0 5px 15px rgba(200,137,82,.16) !important; }
+.tree-generation, .generation, .generation b { color: var(--generation-ink) !important; }
+.tree-generation { background: var(--generation) !important; }
+.full-tree-node, .timeline, .migration-list { border-color: var(--tree-line) !important; }
+.full-tree-node:not(.tree-root) > summary::before, .tree-leaf:not(.tree-root) > .tree-leaf-row::before,
+.timeline .lineage-level::before, .migration-list i { border-color: var(--tree-dot) !important; background: var(--tree-dot) !important; }
+.tree-person-name, .line-node, .line-node.selected, .tree-row button { background: var(--surface) !important; color: var(--ink) !important; border-color: var(--card-border) !important; }
+.tree-person-name.is-migrated { background: var(--surface-soft) !important; border-color: var(--group-border) !important; color: var(--ink) !important; }
+.tree-toggle-button, .correction-form button, .graph-help button, .generation-picker-menu button.active { background: var(--accent) !important; border-color: var(--accent) !important; color: var(--generation-ink) !important; }
+.tree-row button { color: var(--button-ink) !important; border-color: var(--button-border) !important; }
+.generation-picker-trigger, .generation-picker-menu, .password-modal, .password-modal input,
+.correction-form input, .correction-form textarea { background: var(--surface-soft) !important; color: var(--ink) !important; border-color: var(--button-border) !important; }
+.password-modal h3, .correction-page h2, .correction-list-heading h3, .graph-help h2,
+.person-identity h2 { color: var(--ink) !important; }
+.correction-form label, .correction-item-meta, .correction-item > p { color: var(--ink) !important; }
+.correction-item, .correction-page p { background: var(--surface) !important; border-color: var(--group-border) !important; color: var(--muted-ink) !important; }
+.rule-divider, .rule-explain b, .rule-explain strong { color: var(--accent) !important; }
+.rule-explain { border-color: var(--accent) !important; color: var(--muted-ink) !important; }
+
+/* Name card finish: barely-there warm paper gradient, not a saturated highlight. */
+.tree-person-name, .tree-leaf-row .tree-person-name, .line-node {
+  background: linear-gradient(180deg, rgba(255,255,255,0.75) 0%, rgba(255,250,240,0.9) 45%, rgba(248,234,214,0.95) 100%) !important;
+  border: 1px solid #C88952 !important;
+  box-shadow: 0 2px 6px rgba(120,78,42,.08), inset 0 1px 0 rgba(255,255,255,.7) !important;
+}
+.tree-person-name:hover, .line-node:hover { border-color: #B87949 !important; }
+.tree-person-name.is-migrated { background: linear-gradient(180deg, #FFF1E7 0%, #FFF9EF 55%, #FBEEDC 100%) !important; }
+
+.full-tree-node summary .tree-toggle-button.is-collapse { background: rgba(182,90,54,0.5) !important; }
+
+/* Temporarily hide the all-lineage entry; keep concrete branch buttons available. */
+.branch-overview-tab { display: none !important; }
+
+.branch-lineage-path { display: flex; align-items: center; gap: 7px; min-height: 36px; margin: 0 14px 2px; padding: 0 3px; overflow-x: auto; scrollbar-width: none; color: var(--muted-ink, #9B7658); font-family: STKaiti, KaiTi, serif; font-size: 15px; white-space: nowrap; }
+.branch-lineage-path::-webkit-scrollbar { display: none; }
+.branch-lineage-path span { display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto; }
+.branch-lineage-path span.current { color: var(--accent, #B65A36); font-weight: 700; }
+.branch-lineage-path b { color: var(--tree-line, #C99A63); font-size: 20px; font-weight: 400; }
+@media (max-width:380px) { .branch-lineage-path { margin-inline: 10px; font-size: 13px; gap: 4px; } .branch-lineage-path span { gap: 4px; } }
+
+.branch-lineage-path { margin-left: 19px; font-weight: 700; }
+.branch-lineage-path::before { content: "}"; flex: 0 0 auto; color: var(--muted-ink, #9B7658); font-weight: 700; }
+@media (max-width:380px) { .branch-lineage-path { margin-left: 15px; } }
+
+.tree-generation-toggle { border: 0; cursor: pointer; font: inherit; }
+
+/* Keep three-character generation labels readable above relationship lines. */
+.full-tree-node summary .tree-generation, .tree-leaf-row .tree-generation { position: relative; z-index: 2; min-width: max-content; padding: 3px 8px; white-space: nowrap; }
+
+/* Compact generation badges: prevent max-content grid sizing from enlarging the label. */
+.full-tree-node summary .tree-generation, .tree-leaf-row .tree-generation { width: auto; min-width: 38px; max-width: 50px; padding: 4px 5px; font-size: 11px !important; line-height: 1.1; white-space: nowrap; }
