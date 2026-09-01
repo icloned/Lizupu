@@ -255,3 +255,213 @@ button { color: var(--button-ink); }
 
 /* Compact generation badges: prevent max-content grid sizing from enlarging the label. */
 .full-tree-node summary .tree-generation, .tree-leaf-row .tree-generation { width: auto; min-width: 38px; max-width: 50px; padding: 4px 5px; font-size: 11px !important; line-height: 1.1; white-space: nowrap; }
+
+/* Branch descendants within five generations get a deeper card gradient. */
+.branch-tree .tree-person-name.branch-depth-highlight {
+  background: linear-gradient(180deg, rgba(255, 247, 229, .92) 0%, rgba(248, 222, 190, .98) 48%, rgba(229, 183, 133, 1) 100%) !important;
+  border-color: #B87949 !important;
+  box-shadow: 0 2px 7px rgba(120, 78, 42, .13), inset 0 1px 0 rgba(255, 255, 255, .72) !important;
+}
+.branch-tree .tree-person-name.branch-depth-highlight.is-migrated {
+  background: linear-gradient(180deg, #fbe8df 0%, #e8cbd2 52%, #c99eae 100%) !important;
+  border-color: #a8577d !important;
+}
+
+
+/* Branch tab outline grouping. */
+.branch-generation-tabs button:nth-child(-n+4):not(.active) { border-color: #cfa77c; }
+.branch-generation-tabs button:nth-child(n+5):not(.active) { border-color: #dfc6a6; }
+
+
+/* Migrated branch cards keep the purple treatment above depth highlighting. */
+.branch-tree .tree-person-name.is-migrated,
+.full-tree-page .tree-person-name.is-migrated,
+.branch-tree .tree-person-name.branch-depth-highlight.is-migrated {
+  background: linear-gradient(180deg, #f5e1e8 0%, #e0bfd0 52%, #bf91aa 100%) !important;
+  border-color: #a8577d !important;
+  box-shadow: 0 2px 7px rgba(90, 22, 61, .14), inset 0 1px 0 rgba(255, 255, 255, .62) !important;
+  color: #652044 !important;
+}
+
+/* Homepage tree: true top-down parent-child structure. */
+.full-tree-page .full-tree {
+  padding: 14px 20px 108px;
+  overflow: auto;
+}
+.full-tree-page .home-tree {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  justify-items: center;
+  padding: 8px 0 20px;
+}
+.home-tree-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: max-content;
+}
+.home-tree-card {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: auto max-content auto auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+}
+.home-tree-card .tree-generation {
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 24px;
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--generation-color);
+  color: #fff;
+  font-family: "Microsoft YaHei", Arial, sans-serif;
+  font-size: 11px !important;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.home-tree-card .tree-person-name {
+  display: block;
+  min-width: 0;
+  border-radius: 9px;
+  padding: 7px 11px;
+  font-family: "Microsoft YaHei", Arial, sans-serif;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.home-tree-card .tree-toggle-button {
+  width: 27px;
+  min-width: 27px;
+  height: 18px;
+  padding: 0 1px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--person-arrow-color);
+  color: #fff;
+  font-size: 8px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.home-tree-card .tree-toggle-button.is-collapse {
+  width: 12px;
+  min-width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--generation-color);
+  font-size: 12px;
+}
+.home-tree-card .tree-descendant-count {
+  align-self: start;
+  color: #8f786b !important;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1;
+}
+.home-tree-children {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 28px;
+  width: max-content;
+  padding: 36px 16px 0;
+}
+.home-tree-children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 1px;
+  height: 18px;
+  background: var(--generation-color);
+}
+.home-tree-children::after {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: var(--connector-left, 50%);
+  right: var(--connector-right, 50%);
+  height: 1px;
+  background: var(--generation-color);
+}
+.home-tree-children.is-single-child::after {
+  display: none;
+}
+.home-tree-children > .home-tree-node::before {
+  content: "";
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  width: 1px;
+  height: 18px;
+  background: var(--generation-color);
+}
+.home-tree-card .tree-person-name.is-migrated {
+  background: linear-gradient(180deg, #f5e1e8 0%, #e0bfd0 52%, #bf91aa 100%) !important;
+  border-color: #a8577d !important;
+  color: #652044 !important;
+}
+/* Homepage tree pan and pinch canvas. */
+.full-tree-page .full-tree {
+  overflow: hidden;
+}
+.home-tree-viewport {
+  width: 100%;
+  height: calc(100dvh - 182px);
+  min-height: 390px;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+.home-tree-stage {
+  width: max-content;
+  min-width: 100%;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+/* Collapsible generation rule above the tree. */
+.generation-rule-note {
+  display: block;
+  margin: 0 0 9px;
+  padding: 0;
+  overflow: hidden;
+  text-align: center;
+  font-size: 14px;
+}
+.generation-rule-note summary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 7px 30px 7px 12px;
+  position: relative;
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+.generation-rule-note summary::-webkit-details-marker { display: none; }
+.generation-rule-note summary::after {
+  content: "展开";
+  position: absolute;
+  right: 11px;
+  color: #9a6c50;
+  font-size: 11px;
+  font-weight: 400;
+}
+.generation-rule-note[open] summary::after { content: "收起"; }
+.generation-rule-note > div {
+  display: grid;
+  gap: 2px;
+  padding: 0 10px 8px;
+  color: #806956;
+  line-height: 1.35;
+}
+.generation-rule-note > div span { display: block; }
