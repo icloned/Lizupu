@@ -498,6 +498,7 @@ button { color: var(--button-ink); }
   height: min(46dvh, 380px);
   min-height: 0;
   overflow: hidden;
+  overscroll-behavior: contain;
   touch-action: none;
   user-select: none;
 }
@@ -508,3 +509,4 @@ button { color: var(--button-ink); }
   will-change: transform;
 }
 .person-page .local-tree { margin-top: 0; padding-top: 0; }
+.person-page-shell { overflow: hidden; }

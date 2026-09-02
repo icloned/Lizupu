@@ -307,7 +307,7 @@ function PersonPage({ go, selectedId }) {
   const current = sourceNodeMap.get(selectedId) || sourceNodeMap.get(genealogyTree.id)
   const parent = current.parentId ? sourceNodeMap.get(current.parentId) : null
   const children = current.childIds.map((id) => sourceNodeMap.get(id))
-  return <PageFrame className="tree-page-shell"><Header title="人物" hideBack action={<button className="icon-button" onClick={() => go('search')}><Icon name="search" /></button>} />
+  return <PageFrame className="tree-page-shell person-page-shell"><Header title="人物" hideBack action={<button className="icon-button" onClick={() => go('search')}><Icon name="search" /></button>} />
     <div className="page-content person-page">
       <div className="person-identity"><div className="word-medallion">李</div><div><h2>{formatPersonName(current.title)}</h2><p>{generationLabel(current.depth)}</p></div></div>
       <section className="local-tree"><BloodlineTree current={current} parent={parent} children={children} go={go} /></section>
