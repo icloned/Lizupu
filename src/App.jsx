@@ -165,7 +165,8 @@ function BranchesPage({ go }) {
     const bottom = Math.max(...cardBounds.map((bounds) => bounds.bottom))
     const width = Math.max(1, right - left)
     const height = Math.max(1, bottom - top)
-    const scale = Math.min(1, (viewportBounds.width - 12) / width, (viewportBounds.height - 16) / height)
+    const fitScale = Math.min(1, (viewportBounds.width - 12) / width, (viewportBounds.height - 16) / height)
+    const scale = Math.max(0.72, fitScale)
     const targetLeft = viewportBounds.left + (viewportBounds.width - width * scale) / 2
     const targetTop = viewportBounds.top + 8
 
@@ -213,13 +214,22 @@ function BranchesPage({ go }) {
     const height = Math.max(1, bottom - top)
     const availableWidth = Math.max(1, viewportBounds.width - 24)
     const availableHeight = Math.max(1, viewportBounds.height - 20)
-    const scale = Math.min(1, availableWidth / width, availableHeight / height)
-    const targetLeft = viewportBounds.left + (viewportBounds.width - width * scale) / 2
+    // Dense branches should stay readable; anything beyond the viewport can
+    // be inspected with the existing pan and pinch gestures.
+    const bottomRowBounds = cardBounds.filter((bounds) => Math.abs(bounds.bottom - bottom) < 1)
+    const bottomRowLeft = Math.min(...bottomRowBounds.map((bounds) => bounds.left))
+    const bottomRowRight = Math.max(...bottomRowBounds.map((bounds) => bounds.right))
+    const bottomRowWidth = Math.max(1, bottomRowRight - bottomRowLeft)
+    const fitScale = Math.min(1, availableWidth / width, availableHeight / height)
+    const readableScale = Math.max(0.72, fitScale)
+    const scale = Math.min(readableScale, availableWidth / bottomRowWidth)
+    const bottomRowCenter = (bottomRowLeft + bottomRowRight) / 2
+    const targetFocusCenter = viewportBounds.left + viewportBounds.width / 2
     const targetTop = viewportBounds.top + 8
 
     branchTransformRef.current = {
       scale,
-      x: targetLeft - stageBounds.left - (left - stageBounds.left) * scale,
+      x: targetFocusCenter - stageBounds.left - (bottomRowCenter - stageBounds.left) * scale,
       y: targetTop - stageBounds.top - (top - stageBounds.top) * scale,
     }
     applyBranchTransform()
@@ -264,7 +274,11 @@ function BranchesPage({ go }) {
     }
     expandTo(branchRoot, treeGeneration)
     setExpandedIds(ids)
-    setBranchCenterRequestId(branchRoot.id)
+    if (isOverview) setBranchCenterRequestId(branchRoot.id)
+    else {
+      setBranchCenterRequestId(null)
+      pendingBranchFitRef.current = branchRoot.id
+    }
   }, [branchRoot.id, isOverview, treeGeneration, defaultExpandToGeneration])
   useLayoutEffect(() => {
     if (branchCenterRequestId !== branchRoot.id) return undefined
@@ -293,12 +307,12 @@ function BranchesPage({ go }) {
       return next
     })
   }
-  return <PageFrame className="tree-page-shell"><Header title="支系" onBack={() => go('tree')} hideBack />
+  return <PageFrame className="tree-page-shell"><img className="page-cultural-bg page-cultural-bg-shell" src="./header-art/branches.png" alt="" aria-hidden="true" /><Header title="支系" onBack={() => go('tree')} hideBack />
     <div className="branch-tabs" role="tablist" aria-label="支系选择">
       <div className="branch-overview-tab"><button className={isOverview ? 'active' : ''} onClick={() => setSelectedBranchId(null)} role="tab" aria-selected={isOverview}>总世系</button></div>
       <div className="branch-generation-tabs">{[...fifteenthGenerationNodes].reverse().map((node) => <button key={node.id} className={selectedBranchId === node.id ? 'active' : ''} onClick={() => setSelectedBranchId(node.id)} role="tab" aria-selected={selectedBranchId === node.id}>{formatPrimaryName(node.title)}</button>)}</div>
     </div><div className="branch-scroll-hint">← 左右滑动查看更多 →</div><div className="branch-lineage-path" aria-label="当前支系直系">{directLineage.map((node, index) => <span key={node.id} className={index === directLineage.length - 1 ? 'current' : ''}>{formatPrimaryName(node.title).replace(/[{}]/g, '')}{index < directLineage.length - 1 && <b>›</b>}</span>)}</div>
-    <div className="page-content full-tree branch-tree"><div ref={branchViewportRef} className="branch-tree-viewport" onTouchStart={handleBranchTouchStart} onTouchMove={handleBranchTouchMove} onTouchEnd={resetBranchGesture} onTouchCancel={resetBranchGesture}><div ref={branchStageRef} className="branch-tree-stage"><div className="branch-highlight-box"><div className="home-tree"><HomeTreeNode node={branchRoot} generation={treeGeneration} generationLimit={treeLimit} focusedNodeId={branchRoot.id} expandedIds={expandedIds} onToggle={toggleBranchNode} onFocusNode={() => {}} bulkExpandFromGeneration={20} branchHighlightFrom={branchHighlightFrom} branchHighlightTo={branchHighlightTo} toggleOnName toggleOnGeneration={formatPrimaryName(branchRoot.title) === '长素'} /></div></div></div></div></div>
+    <div className="page-content full-tree branch-tree"><img className="page-cultural-bg" src="/header-art/branches.png" alt="" aria-hidden="true" /><div ref={branchViewportRef} className="branch-tree-viewport" onTouchStart={handleBranchTouchStart} onTouchMove={handleBranchTouchMove} onTouchEnd={resetBranchGesture} onTouchCancel={resetBranchGesture}><div ref={branchStageRef} className="branch-tree-stage"><div className="branch-highlight-box"><div className="home-tree"><HomeTreeNode node={branchRoot} generation={treeGeneration} generationLimit={treeLimit} focusedNodeId={branchRoot.id} expandedIds={expandedIds} onToggle={toggleBranchNode} onFocusNode={() => {}} bulkExpandFromGeneration={20} branchHighlightFrom={branchHighlightFrom} branchHighlightTo={branchHighlightTo} toggleOnName toggleOnGeneration={formatPrimaryName(branchRoot.title) === '长素'} /></div></div></div></div></div>
     <BottomNav active="branches" go={go} />
   </PageFrame>
 }
@@ -308,7 +322,7 @@ function PersonPage({ go, selectedId }) {
   const parent = current.parentId ? sourceNodeMap.get(current.parentId) : null
   const children = current.childIds.map((id) => sourceNodeMap.get(id))
   return <PageFrame className="tree-page-shell person-page-shell"><Header title="人物" hideBack action={<button className="icon-button" onClick={() => go('search')}><Icon name="search" /></button>} />
-    <div className="page-content person-page">
+    <div className="page-content person-page"><img className="page-cultural-bg" src="./header-art/full-tree.png" alt="" aria-hidden="true" />
       <div className="person-identity"><div className="word-medallion">李</div><div><h2>{formatPersonName(current.title)}</h2><p>{generationLabel(current.depth)}</p></div></div>
       <section className="local-tree"><BloodlineTree current={current} parent={parent} children={children} go={go} /></section>
     </div><BottomNav active="home" go={go} />
@@ -472,7 +486,7 @@ function SearchPage({ go }) {
     return [...groups.entries()].sort(([left], [right]) => left - right)
   }, [filtered])
   return <PageFrame className="tree-page-shell"><Header title="查询" hideBack />
-    <div className="page-content search-page"><div className="search-controls"><label className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="查询姓名" /></label>
+    <div className="page-content search-page"><img className="page-cultural-bg" src="./header-art/search.png?v=20260902" alt="" aria-hidden="true" /><div className="search-controls"><label className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="查询姓名" /></label>
       <div className="search-toolbar"><div className="filters"><div className="generation-picker"><button type="button" className="generation-picker-trigger" onClick={() => setDepthOpen((open) => !open)}>{depth ? generationLabel(Number(depth)) : '全部世系'}<Icon name="chevron" size={16} /></button>{depthOpen && <div className="generation-picker-menu">{[['', '全部世系'], ...Array.from({ length: sourceMeta.maxDepth }, (_, index) => [String(index + 1), generationLabel(index + 1)])].map(([value, label]) => <button type="button" key={value || 'all'} className={depth === value ? 'active' : ''} onClick={() => { setDepth(value); setDepthOpen(false) }}>{label}</button>)}</div>}</div></div><p className="sample-note">共 {filtered.length} 人</p></div></div>
       <div className="search-result-groups">{groupedResults.map(([generation, members]) => <section className="search-result-group" key={generation}><h2>{generationLabel(generation)}<small>{members.length} 人</small></h2><div className="result-list">{members.map((node) => <button key={node.id} onClick={() => go('node', node.id)}><span className="avatar">李</span><div><b>{formatPersonName(node.title)}</b><small>{generationLabel(node.depth)}</small></div><Icon name="chevron" /></button>)}</div></section>)}{filtered.length === 0 && <p className="empty">没有符合条件的成员</p>}</div>
     </div><BottomNav active="search" go={go} />
@@ -531,8 +545,8 @@ function CorrectionPage({ go }) {
       setPasswordModal(null); setPassword('')
     } catch (reason) { setPasswordError(reason.message) }
   }
-  return <PageFrame className="tree-page-shell"><Header title="纠错" hideBack /><div className="page-content correction-page">
-    <form className="correction-form" onSubmit={submitCorrection}><label>提交人姓名<input value={submitter} onChange={(event) => setSubmitter(event.target.value)} placeholder="请输入姓名" required /></label><label>纠错内容<textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="请描述需要核对的族谱信息" rows="4" required /></label><label>验证码<div className="captcha-row"><input value={captchaAnswer} onChange={(event) => setCaptchaAnswer(event.target.value)} placeholder={captchaQuestion || '加载中'} required /><button type="button" onClick={refreshCaptcha}>换一题</button></div></label><button type="submit">提交纠错</button></form>
+  return <PageFrame className="tree-page-shell"><Header title="纠错" hideBack /><div className="page-content correction-page"><img className="page-cultural-bg" src="./header-art/correction.png" alt="" aria-hidden="true" />
+    <form className="correction-form" onSubmit={submitCorrection}><label>提交人姓名<input value={submitter} onChange={(event) => setSubmitter(event.target.value)} placeholder="请输入姓名" required /></label><label>纠错内容<textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="请描述需要修改的错误内容" rows="4" required /></label><label>验证码<div className="captcha-row"><input value={captchaAnswer} onChange={(event) => setCaptchaAnswer(event.target.value)} placeholder={captchaQuestion || '加载中'} required /><button type="button" onClick={refreshCaptcha}>换一题</button></div></label><button type="submit">提交纠错</button></form>
     {error && <p className="correction-error">{error}</p>}<section className="correction-list"><div className="correction-list-heading"><h3>纠错列表</h3><span>{corrections.length} 条</span></div>{loading ? <p className="correction-empty">正在加载</p> : corrections.length === 0 ? <p className="correction-empty">暂时没有提交记录</p> : corrections.map((item) => <article className={`correction-item is-${item.status}`} key={item.id}><div className="correction-item-meta"><b>{item.submitter}</b><time>{item.submittedAt}</time><em>{item.status === 'archived' ? '已归档' : item.status === 'repaired' ? '已修复' : '待处理'}</em></div><p>{item.content}</p><div className="correction-actions"><button type="button" onClick={() => updateStatus(item.id, 'repaired')}>已修复</button><button type="button" onClick={() => removeCorrection(item.id)}>删除</button></div></article>)}</section>
   </div>{passwordModal && <div className="password-modal-backdrop" role="presentation"><form className="password-modal" onSubmit={confirmProtectedAction}><h3>验证操作密码</h3><p>请输入密码后继续操作</p><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="操作密码" autoFocus /><>{passwordError && <span className="password-modal-error">{passwordError}</span>}</><div><button type="button" onClick={() => setPasswordModal(null)}>取消</button><button type="submit">确定</button></div></form></div>}<BottomNav active="correction" go={go} /></PageFrame>
 }
@@ -611,14 +625,24 @@ function TreePage({ go }) {
     const bottom = Math.max(...cardBounds.map((bounds) => bounds.bottom))
     const width = Math.max(1, right - left)
     const height = Math.max(1, bottom - top)
-    const scale = Math.min(1, (viewportBounds.width - 24) / width, (viewportBounds.height - 20) / height)
-    const targetLeft = viewportBounds.left + (viewportBounds.width - width * scale) / 2
-    const targetTop = viewportBounds.top + 8
+    // Keep dense branches readable. If every descendant cannot fit in the
+    // viewport, the tree remains pannable instead of shrinking to a thumbnail.
+    const bottomRowBounds = cardBounds.filter((bounds) => Math.abs(bounds.bottom - bottom) < 1)
+    const bottomRowLeft = Math.min(...bottomRowBounds.map((bounds) => bounds.left))
+    const bottomRowRight = Math.max(...bottomRowBounds.map((bounds) => bounds.right))
+    const bottomRowWidth = Math.max(1, bottomRowRight - bottomRowLeft)
+    const fitScale = Math.min(1, (viewportBounds.width - 24) / width, (viewportBounds.height - 20) / height)
+    const readableScale = Math.max(0.72, fitScale)
+    const scale = Math.min(readableScale, (viewportBounds.width - 24) / bottomRowWidth)
+    const bottomRowCenter = (bottomRowLeft + bottomRowRight) / 2
+    const targetFocusCenter = viewportBounds.left + viewportBounds.width / 2
+    const focusBounds = treeNode.firstElementChild.getBoundingClientRect()
+    const targetFocusTop = viewportBounds.top + viewportBounds.height * 0.56
 
     viewTransformRef.current = {
       scale,
-      x: targetLeft - stageBounds.left - (left - stageBounds.left) * scale,
-      y: targetTop - stageBounds.top - (top - stageBounds.top) * scale,
+      x: targetFocusCenter - stageBounds.left - (bottomRowCenter - stageBounds.left) * scale,
+      y: targetFocusTop - stageBounds.top - (focusBounds.top - stageBounds.top) * scale,
     }
     applyViewTransform()
   }
@@ -695,7 +719,7 @@ function TreePage({ go }) {
     applyViewTransform()
   }
   const resetGesture = () => { gestureRef.current = null }
-  return <PageFrame className="tree-page-shell full-tree-page"><Header title={sourceMeta.mapTitle} hideBack /><div className="page-content full-tree"><GenerationRuleNote /><div ref={treeViewportRef} className="home-tree-viewport" onTouchStart={handleTreeTouchStart} onTouchMove={handleTreeTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture}><div ref={treeStageRef} className="home-tree-stage"><div className="home-tree"><HomeTreeNode node={genealogyTree} generation={1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={focusNode} toggleOnName rawName /></div></div></div></div><BottomNav active="home" go={go} /></PageFrame>
+  return <PageFrame className="tree-page-shell full-tree-page"><Header title={sourceMeta.mapTitle} hideBack /><div className="page-content full-tree"><img className="page-cultural-bg" src="./header-art/full-tree.png" alt="" aria-hidden="true" /><GenerationRuleNote /><div ref={treeViewportRef} className="home-tree-viewport" onTouchStart={handleTreeTouchStart} onTouchMove={handleTreeTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture}><div ref={treeStageRef} className="home-tree-stage"><div className="home-tree"><HomeTreeNode node={genealogyTree} generation={1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={focusNode} toggleOnName rawName /></div></div></div></div><BottomNav active="home" go={go} /></PageFrame>
 }
 function HomeTreeNode({ node, generation, generationLimit, focusedNodeId, expandedIds, onToggle, onFocusNode, inheritedMigration, bulkExpandFromGeneration, branchHighlightFrom, branchHighlightTo, toggleOnName = false, toggleOnGeneration = false, reverseChildren = false, rawName = false }) {
   const hasChildren = node.children.length > 0

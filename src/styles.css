@@ -95,8 +95,9 @@
 .tree-page-shell .correction-page h2 { color: #742d25; font-weight: 500; }
 .tree-page-shell .correction-page p { padding: 14px 16px; border: 1px solid rgba(202, 160, 100, .55); border-radius: 10px; background: rgba(255, 246, 220, .78); color: #806956; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55); }
 .correction-form { display: grid; gap: 12px; margin-top: 18px; }
-.correction-form label { display: grid; gap: 6px; color: #742d25; font-size: 13px; font-weight: 700; }
-.correction-form input, .correction-form textarea { width: 100%; border: 1px solid rgba(202, 160, 100, .65); border-radius: 9px; padding: 10px 12px; outline: 0; background: rgba(255, 246, 220, .82); color: #742d25; resize: vertical; }
+.correction-form label { display: grid; gap: 6px; color: #742d25; font-size: 13px; font-weight: 400; }
+.correction-form input, .correction-form textarea { width: 100%; border: 1px solid rgba(202, 160, 100, .65); border-radius: 9px; padding: 10px 12px; outline: 0; background: rgba(255, 246, 220, .82); color: #742d25; font: 400 16px/1.5 "Microsoft YaHei", Arial, sans-serif; resize: vertical; }
+.correction-form input::placeholder, .correction-form textarea::placeholder { color: #987b64; font: inherit; font-weight: 400; opacity: 1; }
 .correction-form input:focus, .correction-form textarea:focus { border-color: #b84c35; box-shadow: 0 0 0 2px rgba(184, 76, 53, .12); }
 .correction-form button { border: 0; border-radius: 9px; padding: 11px 14px; background: #b84c35; color: #fff; font-weight: 700; }
 .correction-list { margin-top: 24px; }
@@ -510,3 +511,119 @@ button { color: var(--button-ink); }
 }
 .person-page .local-tree { margin-top: 0; padding-top: 0; }
 .person-page-shell { overflow: hidden; }
+
+/* Quiet cultural art belongs to each page's main content, not the title bar. */
+.tree-page-shell .full-tree,
+.tree-page-shell .branch-tree,
+.tree-page-shell .search-page,
+.tree-page-shell .correction-page {
+  background-repeat: no-repeat;
+  background-position: center top;
+  background-size: 100% calc(100% - 92px);
+}
+.tree-page-shell .full-tree {
+  background-image: linear-gradient(rgba(244, 229, 201, .14), rgba(244, 229, 201, .3)), url('../header-art/full-tree.png') !important;
+}
+.tree-page-shell .branch-tree {
+  background-image: linear-gradient(rgba(244, 229, 201, .16), rgba(244, 229, 201, .32)), url('../header-art/branches.png') !important;
+}
+.tree-page-shell .search-page {
+  background-image: none !important;
+  position: relative;
+  overflow: hidden;
+}
+.tree-page-shell .correction-page {
+  background-image: linear-gradient(rgba(244, 229, 201, .16), rgba(244, 229, 201, .32)), url('../header-art/correction.png') !important;
+}
+
+/* Use a real image layer so the complete portrait artwork is always visible;
+   it is not cropped by background sizing or hidden behind the fixed nav. */
+.tree-page-shell .full-tree,
+.tree-page-shell .branch-tree,
+.tree-page-shell .search-page,
+.tree-page-shell .correction-page {
+  position: relative;
+  background-image: none !important;
+  overflow: hidden;
+}
+.tree-page-shell .person-page {
+  position: relative;
+  background-image: none !important;
+  overflow: hidden;
+}
+.page-cultural-bg {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  opacity: .3;
+  pointer-events: none;
+}
+.tree-page-shell .full-tree > :not(.page-cultural-bg),
+.tree-page-shell .branch-tree > :not(.page-cultural-bg),
+.tree-page-shell .search-page > :not(.page-cultural-bg),
+.tree-page-shell .correction-page > :not(.page-cultural-bg) {
+  position: relative;
+  z-index: 1;
+}
+.tree-page-shell .person-page > :not(.page-cultural-bg) {
+  position: relative;
+  z-index: 1;
+}
+.tree-page-shell .search-page > .page-cultural-bg {
+  display: none;
+}
+.tree-page-shell .branch-tree > .page-cultural-bg {
+  display: none;
+}
+.tree-page-shell .branch-tree {
+  background: transparent !important;
+}
+.tree-page-shell .search-page {
+  background-image: none !important;
+}
+.tree-page-shell .search-page::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: url('../header-art/search.png?v=20260902') center top / 100% auto repeat-y;
+  opacity: .3;
+  pointer-events: none;
+}
+.tree-page-shell .person-page .local-tree {
+  margin-left: -22px;
+  margin-right: -22px;
+  background: transparent !important;
+}
+.tree-page-shell .person-page .person-tree-viewport,
+.tree-page-shell .person-page .person-window-tree {
+  background: transparent !important;
+}
+.page-cultural-bg-shell {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  opacity: .3;
+  pointer-events: none;
+}
+.tree-page-shell > :not(.page-cultural-bg-shell) {
+  position: relative;
+  z-index: 1;
+}
+.tree-page-shell .branch-tabs,
+.tree-page-shell .branch-scroll-hint {
+  background: rgba(247, 238, 219, .3) !important;
+}
+.tree-page-shell .branch-lineage-path {
+  background: rgba(255, 246, 220, .48) !important;
+}
+.tree-page-shell .bottom-nav {
+  position: fixed;
+  z-index: 20;
+}
