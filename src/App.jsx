@@ -29,8 +29,8 @@ const defaultExpandedIds = (() => {
 const orderWords = ['长', '次', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二']
 const childOrderLabel = (index) => `${orderWords[index] || `${index + 1}`}子`
 const fifteenthGenerationNodes = sourceNodes.filter((node) => node.depth === 15 && node.childIds.length > 0)
-const branchesExpandTo17 = new Set(['长素', '振甲', '长荣', '长水', '长友', '长清'])
-const branchesExpandTo18 = new Set(['长松', '长锦'])
+const branchesExpandTo16 = new Set(['长素', '振甲', '长荣', '长水'])
+const branchesExpandTo17 = new Set(['长松', '长锦', '长友', '长清'])
 const generationWords = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九']
 const generationLabel = (generation) => generation >= 20 ? `廿${generation === 20 ? '' : generationWords[generation - 20]}世` : `${generationWords[generation]}世`
 const generationIndexLabel = (generation) => generation >= 11 ? generationWords[generation] : generationLabel(generation)
@@ -126,16 +126,134 @@ function BranchPage({ go, selectedId }) {
 function BranchesPage({ go }) {
   const [selectedBranchId, setSelectedBranchId] = useState(fifteenthGenerationNodes[fifteenthGenerationNodes.length - 1]?.id || null)
   const [expandedIds, setExpandedIds] = useState(() => new Set([genealogyTree.id]))
+  const [branchCenterRequestId, setBranchCenterRequestId] = useState(null)
+  const branchViewportRef = useRef(null)
+  const branchStageRef = useRef(null)
+  const branchTransformRef = useRef({ scale: 1, x: 0, y: 0 })
+  const branchGestureRef = useRef(null)
+  const pendingBranchFitRef = useRef(null)
   const branchRoot = selectedBranchId ? genealogyNodeMap.get(selectedBranchId) : genealogyTree
   const isOverview = !selectedBranchId
-  const directLineage = nodePath(branchRoot.id).slice(-6)
+  const directLineage = nodePath(branchRoot.id).slice(-7)
   const treeGeneration = isOverview ? 1 : 15
   const treeLimit = isOverview ? 15 : sourceMeta.maxDepth
   const branchName = formatPrimaryName(branchRoot.title)
   const branchEndGeneration = isOverview ? 6 : deepestGeneration(branchRoot, treeGeneration)
-  const defaultExpandToGeneration = isOverview ? 6 : (branchesExpandTo17.has(branchName) ? 17 : (branchesExpandTo18.has(branchName) ? 18 : 19))
+  const defaultExpandToGeneration = isOverview ? 6 : (branchesExpandTo16.has(branchName) ? 16 : (branchesExpandTo17.has(branchName) ? 17 : 19))
   const branchHighlightTo = isOverview ? null : branchEndGeneration
   const branchHighlightFrom = isOverview ? null : Math.max(17, branchHighlightTo - 4)
+  const applyBranchTransform = () => {
+    const stage = branchStageRef.current
+    const view = branchTransformRef.current
+    if (stage) stage.style.transform = `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})`
+  }
+  const centerBranchRoot = () => {
+    const viewport = branchViewportRef.current
+    const stage = branchStageRef.current
+    if (!viewport || !stage) return
+    branchTransformRef.current = { scale: 1, x: 0, y: 0 }
+    stage.style.transform = 'none'
+
+    const cards = Array.from(stage.querySelectorAll('.home-tree-card'))
+    if (cards.length === 0) return
+    const viewportBounds = viewport.getBoundingClientRect()
+    const stageBounds = stage.getBoundingClientRect()
+    const cardBounds = cards.map((card) => card.getBoundingClientRect())
+    const left = Math.min(...cardBounds.map((bounds) => bounds.left))
+    const right = Math.max(...cardBounds.map((bounds) => bounds.right))
+    const top = Math.min(...cardBounds.map((bounds) => bounds.top))
+    const bottom = Math.max(...cardBounds.map((bounds) => bounds.bottom))
+    const width = Math.max(1, right - left)
+    const height = Math.max(1, bottom - top)
+    const scale = Math.min(1, (viewportBounds.width - 12) / width, (viewportBounds.height - 16) / height)
+    const targetLeft = viewportBounds.left + (viewportBounds.width - width * scale) / 2
+    const targetTop = viewportBounds.top + 8
+
+    branchTransformRef.current = {
+      scale,
+      x: targetLeft - stageBounds.left - (left - stageBounds.left) * scale,
+      y: targetTop - stageBounds.top - (top - stageBounds.top) * scale,
+    }
+    applyBranchTransform()
+  }
+  const fitBranchNode = (nodeId) => {
+    const viewport = branchViewportRef.current
+    const stage = branchStageRef.current
+    if (!viewport || !stage) return
+
+    const treeNode = Array.from(stage.querySelectorAll('[data-home-tree-node]'))
+      .find((element) => element.dataset.homeTreeNode === nodeId)
+    const ancestorCards = []
+    let ancestorNode = treeNode?.parentElement?.closest('[data-home-tree-node]')
+    while (ancestorNode) {
+      const ancestorCard = ancestorNode.firstElementChild
+      if (ancestorCard?.classList.contains('home-tree-card')) ancestorCards.push(ancestorCard)
+      ancestorNode = ancestorNode.parentElement?.closest('[data-home-tree-node]')
+    }
+    const cards = treeNode
+      ? [...ancestorCards.reverse(), treeNode.firstElementChild, ...Array.from(treeNode.querySelectorAll('.home-tree-children .home-tree-card'))].filter(Boolean)
+      : []
+
+    if (!treeNode || cards.length === 0) {
+      centerBranchRoot()
+      return
+    }
+
+    branchTransformRef.current = { scale: 1, x: 0, y: 0 }
+    stage.style.transform = 'none'
+
+    const viewportBounds = viewport.getBoundingClientRect()
+    const stageBounds = stage.getBoundingClientRect()
+    const cardBounds = cards.map((card) => card.getBoundingClientRect())
+    const left = Math.min(...cardBounds.map((bounds) => bounds.left))
+    const right = Math.max(...cardBounds.map((bounds) => bounds.right))
+    const top = Math.min(...cardBounds.map((bounds) => bounds.top))
+    const bottom = Math.max(...cardBounds.map((bounds) => bounds.bottom))
+    const width = Math.max(1, right - left)
+    const height = Math.max(1, bottom - top)
+    const availableWidth = Math.max(1, viewportBounds.width - 24)
+    const availableHeight = Math.max(1, viewportBounds.height - 20)
+    const scale = Math.min(1, availableWidth / width, availableHeight / height)
+    const targetLeft = viewportBounds.left + (viewportBounds.width - width * scale) / 2
+    const targetTop = viewportBounds.top + 8
+
+    branchTransformRef.current = {
+      scale,
+      x: targetLeft - stageBounds.left - (left - stageBounds.left) * scale,
+      y: targetTop - stageBounds.top - (top - stageBounds.top) * scale,
+    }
+    applyBranchTransform()
+  }
+  const handleBranchTouchStart = (event) => {
+    if (branchStageRef.current) branchStageRef.current.style.transition = 'none'
+    const view = branchTransformRef.current
+    if (event.touches.length === 2) branchGestureRef.current = { type: 'pinch', distance: touchDistance(event.touches), midpoint: touchMidpoint(event.touches), ...view }
+    else if (event.touches.length === 1) branchGestureRef.current = { type: 'pan', point: { x: event.touches[0].clientX, y: event.touches[0].clientY }, ...view }
+  }
+  const handleBranchTouchMove = (event) => {
+    const gesture = branchGestureRef.current
+    const viewport = branchViewportRef.current
+    if (!gesture || !viewport) return
+    event.preventDefault()
+    if (gesture.type === 'pan' && event.touches.length === 1) {
+      branchTransformRef.current = { scale: gesture.scale, x: gesture.x + event.touches[0].clientX - gesture.point.x, y: gesture.y + event.touches[0].clientY - gesture.point.y }
+      applyBranchTransform()
+      return
+    }
+    if (gesture.type !== 'pinch' || event.touches.length !== 2) return
+    const midpoint = touchMidpoint(event.touches)
+    const scale = Math.min(1.45, Math.max(.25, gesture.scale * (touchDistance(event.touches) / gesture.distance)))
+    const bounds = viewport.getBoundingClientRect()
+    const startX = gesture.midpoint.x - bounds.left
+    const startY = gesture.midpoint.y - bounds.top
+    const currentX = midpoint.x - bounds.left
+    const currentY = midpoint.y - bounds.top
+    const contentX = (startX - gesture.x) / gesture.scale
+    const contentY = (startY - gesture.y) / gesture.scale
+    branchTransformRef.current = { scale, x: currentX - contentX * scale, y: currentY - contentY * scale }
+    applyBranchTransform()
+  }
+  const resetBranchGesture = () => { branchGestureRef.current = null }
   useEffect(() => {
     const targetGeneration = defaultExpandToGeneration
     const ids = new Set()
@@ -146,22 +264,41 @@ function BranchesPage({ go }) {
     }
     expandTo(branchRoot, treeGeneration)
     setExpandedIds(ids)
+    setBranchCenterRequestId(branchRoot.id)
   }, [branchRoot.id, isOverview, treeGeneration, defaultExpandToGeneration])
-  const toggleBranchNode = (id, generation) => setExpandedIds((current) => {
-    const next = new Set(current)
+  useLayoutEffect(() => {
+    if (branchCenterRequestId !== branchRoot.id) return undefined
+    const frame = requestAnimationFrame(centerBranchRoot)
+    return () => cancelAnimationFrame(frame)
+  }, [branchCenterRequestId, branchRoot.id])
+  useLayoutEffect(() => {
+    const nodeId = pendingBranchFitRef.current
+    if (!nodeId) return undefined
+    pendingBranchFitRef.current = null
+    const frame = requestAnimationFrame(() => fitBranchNode(nodeId))
+    return () => cancelAnimationFrame(frame)
+  }, [expandedIds])
+  const toggleBranchNode = (id, generation, centerAfterExpand) => {
     const node = genealogyNodeMap.get(id)
-    const ids = generation >= 21 && node ? collectBranchIds(node) : [id]
-    if (next.has(id)) ids.forEach((branchId) => next.delete(branchId))
-    else ids.forEach((branchId) => next.add(branchId))
-    return next
-  })
+    const parentId = node?.parentId
+    const parentIsInCurrentBranch = parentId && nodePath(parentId).some((ancestor) => ancestor.id === branchRoot.id)
+    pendingBranchFitRef.current = centerAfterExpand
+      ? id
+      : (parentIsInCurrentBranch ? parentId : branchRoot.id)
 
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   return <PageFrame className="tree-page-shell"><Header title="支系" onBack={() => go('tree')} hideBack />
     <div className="branch-tabs" role="tablist" aria-label="支系选择">
       <div className="branch-overview-tab"><button className={isOverview ? 'active' : ''} onClick={() => setSelectedBranchId(null)} role="tab" aria-selected={isOverview}>总世系</button></div>
       <div className="branch-generation-tabs">{[...fifteenthGenerationNodes].reverse().map((node) => <button key={node.id} className={selectedBranchId === node.id ? 'active' : ''} onClick={() => setSelectedBranchId(node.id)} role="tab" aria-selected={selectedBranchId === node.id}>{formatPrimaryName(node.title)}</button>)}</div>
-    </div><div className="branch-scroll-hint">← 左右滑动查看更多 →</div><div className="branch-lineage-path" aria-label="当前支系直系">{directLineage.map((node, index) => <span key={node.id} className={index === directLineage.length - 1 ? 'current' : ''}>{formatPrimaryName(node.title)}{index < directLineage.length - 1 && <b>›</b>}</span>)}</div>
-    <div className="page-content full-tree branch-tree"><p className="sample-note branch-label">{isOverview ? '一世至十五世' : `${formatPrimaryName(branchRoot.title)}支系`}</p><div className="branch-highlight-box"><TreeNode node={branchRoot} generation={treeGeneration} generationLimit={treeLimit} focusedNodeId={branchRoot.id} expandedIds={expandedIds} onToggle={toggleBranchNode} onFocusNode={() => {}} bulkExpandFromGeneration={20} branchHighlightFrom={branchHighlightFrom} branchHighlightTo={branchHighlightTo} toggleOnName toggleOnGeneration={formatPrimaryName(branchRoot.title) === '长素'} /></div></div>
+    </div><div className="branch-scroll-hint">← 左右滑动查看更多 →</div><div className="branch-lineage-path" aria-label="当前支系直系">{directLineage.map((node, index) => <span key={node.id} className={index === directLineage.length - 1 ? 'current' : ''}>{formatPrimaryName(node.title).replace(/[{}]/g, '')}{index < directLineage.length - 1 && <b>›</b>}</span>)}</div>
+    <div className="page-content full-tree branch-tree"><div ref={branchViewportRef} className="branch-tree-viewport" onTouchStart={handleBranchTouchStart} onTouchMove={handleBranchTouchMove} onTouchEnd={resetBranchGesture} onTouchCancel={resetBranchGesture}><div ref={branchStageRef} className="branch-tree-stage"><div className="branch-highlight-box"><div className="home-tree"><HomeTreeNode node={branchRoot} generation={treeGeneration} generationLimit={treeLimit} focusedNodeId={branchRoot.id} expandedIds={expandedIds} onToggle={toggleBranchNode} onFocusNode={() => {}} bulkExpandFromGeneration={20} branchHighlightFrom={branchHighlightFrom} branchHighlightTo={branchHighlightTo} toggleOnName toggleOnGeneration={formatPrimaryName(branchRoot.title) === '长素'} /></div></div></div></div></div>
     <BottomNav active="branches" go={go} />
   </PageFrame>
 }
@@ -173,7 +310,7 @@ function PersonPage({ go, selectedId }) {
   return <PageFrame className="tree-page-shell"><Header title="人物" hideBack action={<button className="icon-button" onClick={() => go('search')}><Icon name="search" /></button>} />
     <div className="page-content person-page">
       <div className="person-identity"><div className="word-medallion">李</div><div><h2>{formatPersonName(current.title)}</h2><p>{generationLabel(current.depth)}</p></div></div>
-      <section className="local-tree"><h3>局部支系网</h3><BloodlineTree current={current} parent={parent} children={children} go={go} /></section>
+      <section className="local-tree"><BloodlineTree current={current} parent={parent} children={children} go={go} /></section>
     </div><BottomNav active="home" go={go} />
   </PageFrame>
 }
@@ -185,25 +322,159 @@ function BloodlineTree({ current, parent, children, go }) {
   const buildChain = (node, index) => ({ ...(genealogyNodeMap.get(node.id) || node), children: index === ancestorChain.length - 1 ? orderedChildren : (ancestorChain[index + 1] ? [buildChain(ancestorChain[index + 1], index + 1)] : []) })
   const root = buildChain(ancestorChain[0] || current, 0)
   const rootGeneration = ancestorChain[0]?.depth || current.depth
-  const expandedIds = new Set([root?.id, parent?.id, current.id].filter(Boolean))
-  const expandDescendants = (node, generation) => {
-    if (generation >= current.depth + 2 || node.children.length === 0) return
-    expandedIds.add(node.id)
-    node.children.forEach((child) => expandDescendants(child, generation + 1))
+  const getDefaultExpandedIds = () => {
+    const ids = new Set([root?.id, parent?.id, current.id].filter(Boolean))
+    const expandDescendants = (node, generation) => {
+      if (generation >= current.depth + 2 || node.children.length === 0) return
+      ids.add(node.id)
+      node.children.forEach((child) => expandDescendants(child, generation + 1))
+    }
+    expandDescendants(root || current, rootGeneration)
+    return ids
   }
-  expandDescendants(root || current, rootGeneration)
-  return <div className="full-tree person-window-tree"><TreeNode node={root || current} generation={rootGeneration} generationLimit={current.depth + 2} focusedNodeId={current.id} expandedIds={expandedIds} onToggle={() => {}} onFocusNode={(nodeId) => go('node', nodeId)} /></div>
+  const [expandedIds, setExpandedIds] = useState(getDefaultExpandedIds)
+  const viewportRef = useRef(null)
+  const stageRef = useRef(null)
+  const transformRef = useRef({ scale: 1, x: 0, y: 0 })
+  const gestureRef = useRef(null)
+  const pendingFocusIdRef = useRef(null)
+  const focusAnimationTimerRef = useRef(null)
+  const applyTransform = () => {
+    const stage = stageRef.current
+    const view = transformRef.current
+    if (stage) stage.style.transform = `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.scale})`
+  }
+  const centerPersonNode = (nodeId, animate = false) => {
+    const viewport = viewportRef.current
+    const stage = stageRef.current
+    if (!viewport || !stage) return
+    const treeNode = Array.from(viewport.querySelectorAll('[data-home-tree-node]')).find((item) => item.dataset.homeTreeNode === nodeId)
+    const card = treeNode?.firstElementChild
+    if (!card) return
+
+    if (focusAnimationTimerRef.current) window.clearTimeout(focusAnimationTimerRef.current)
+    stage.style.transition = animate ? 'transform 260ms cubic-bezier(.22, .8, .24, 1)' : 'none'
+    const viewportBounds = viewport.getBoundingClientRect()
+    const cardBounds = card.getBoundingClientRect()
+    const view = transformRef.current
+    transformRef.current = {
+      ...view,
+      x: view.x + viewportBounds.left + viewportBounds.width / 2 - cardBounds.left - cardBounds.width / 2,
+      y: view.y + viewportBounds.top + 28 - cardBounds.top - cardBounds.height / 2,
+    }
+    applyTransform()
+    if (animate) focusAnimationTimerRef.current = window.setTimeout(() => { if (stageRef.current) stageRef.current.style.transition = 'none' }, 280)
+  }
+  const fitPersonTree = () => {
+    const viewport = viewportRef.current
+    const stage = stageRef.current
+    if (!viewport || !stage) return
+    transformRef.current = { scale: 1, x: 0, y: 0 }
+    stage.style.transform = 'none'
+    const tree = stage.querySelector('.home-tree')
+    if (!tree || !tree.offsetWidth || !tree.offsetHeight) return
+
+    const viewportBounds = viewport.getBoundingClientRect()
+    const treeBounds = tree.getBoundingClientRect()
+    const availableWidth = Math.max(1, viewportBounds.width - 8)
+    const availableHeight = Math.max(1, viewportBounds.height - 12)
+    const scale = Math.min(1, availableWidth / treeBounds.width, availableHeight / treeBounds.height)
+    transformRef.current = {
+      scale,
+      x: viewportBounds.left + (viewportBounds.width - treeBounds.width * scale) / 2 - treeBounds.left,
+      y: viewportBounds.top + 6 - treeBounds.top,
+    }
+    applyTransform()
+  }
+  const fitViewportToNavigation = () => {
+    const viewport = viewportRef.current
+    const navigation = viewport?.closest('.app-shell')?.querySelector('.bottom-nav')
+    if (!viewport || !navigation) return
+    const availableHeight = navigation.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 12
+    viewport.style.height = `${Math.max(0, Math.floor(availableHeight))}px`
+  }
+  useLayoutEffect(() => {
+    setExpandedIds(getDefaultExpandedIds())
+    const updateViewport = () => fitViewportToNavigation()
+    const frame = requestAnimationFrame(() => {
+      updateViewport()
+      fitPersonTree()
+    })
+    window.addEventListener('resize', updateViewport)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', updateViewport)
+    }
+  }, [current.id])
+  useLayoutEffect(() => {
+    const nodeId = pendingFocusIdRef.current
+    if (!nodeId) return undefined
+    pendingFocusIdRef.current = null
+    const frame = requestAnimationFrame(() => centerPersonNode(nodeId, true))
+    return () => cancelAnimationFrame(frame)
+  }, [expandedIds])
+  useEffect(() => () => { if (focusAnimationTimerRef.current) window.clearTimeout(focusAnimationTimerRef.current) }, [])
+  const toggleNode = (id, generation, centerAfterExpand) => {
+    if (centerAfterExpand) pendingFocusIdRef.current = id
+    setExpandedIds((existing) => {
+      const next = new Set(existing)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const handleTouchStart = (event) => {
+    if (focusAnimationTimerRef.current) window.clearTimeout(focusAnimationTimerRef.current)
+    if (stageRef.current) stageRef.current.style.transition = 'none'
+    const view = transformRef.current
+    if (event.touches.length === 2) gestureRef.current = { type: 'pinch', distance: touchDistance(event.touches), midpoint: touchMidpoint(event.touches), ...view }
+    else if (event.touches.length === 1) gestureRef.current = { type: 'pan', point: { x: event.touches[0].clientX, y: event.touches[0].clientY }, ...view }
+  }
+  const handleTouchMove = (event) => {
+    const gesture = gestureRef.current
+    const viewport = viewportRef.current
+    if (!gesture || !viewport) return
+    event.preventDefault()
+    if (gesture.type === 'pan' && event.touches.length === 1) {
+      transformRef.current = { scale: gesture.scale, x: gesture.x + event.touches[0].clientX - gesture.point.x, y: gesture.y + event.touches[0].clientY - gesture.point.y }
+      applyTransform()
+      return
+    }
+    if (gesture.type !== 'pinch' || event.touches.length !== 2) return
+    const midpoint = touchMidpoint(event.touches)
+    const scale = Math.min(1.45, Math.max(.25, gesture.scale * (touchDistance(event.touches) / gesture.distance)))
+    const bounds = viewport.getBoundingClientRect()
+    const startX = gesture.midpoint.x - bounds.left
+    const startY = gesture.midpoint.y - bounds.top
+    const currentX = midpoint.x - bounds.left
+    const currentY = midpoint.y - bounds.top
+    const contentX = (startX - gesture.x) / gesture.scale
+    const contentY = (startY - gesture.y) / gesture.scale
+    transformRef.current = { scale, x: currentX - contentX * scale, y: currentY - contentY * scale }
+    applyTransform()
+  }
+  const resetGesture = () => { gestureRef.current = null }
+  return <div ref={viewportRef} className="person-tree-viewport" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture}><div ref={stageRef} className="person-tree-stage"><div className="full-tree person-window-tree"><div className="home-tree"><HomeTreeNode node={root || current} generation={rootGeneration} generationLimit={current.depth + 2} focusedNodeId={current.id} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={(nodeId) => go('node', nodeId)} /></div></div></div></div>
 }
 
 function SearchPage({ go }) {
   const [query, setQuery] = useState('')
   const [depth, setDepth] = useState('')
   const [depthOpen, setDepthOpen] = useState(false)
-  const filtered = useMemo(() => sourceNodes.filter((node) => node.title.includes(query.trim()) && (!depth || String(node.depth) === depth)).sort((a, b) => a.depth - b.depth), [query, depth])
+  const filtered = useMemo(() => sourceNodes.filter((node) => node.title.includes(query.trim()) && (!depth || String(node.depth) === depth)), [query, depth])
+  const groupedResults = useMemo(() => {
+    const groups = new Map()
+    filtered.forEach((node) => {
+      const members = groups.get(node.depth) || []
+      members.push(node)
+      groups.set(node.depth, members)
+    })
+    return [...groups.entries()].sort(([left], [right]) => left - right)
+  }, [filtered])
   return <PageFrame className="tree-page-shell"><Header title="查询" hideBack />
     <div className="page-content search-page"><div className="search-controls"><label className="search-box"><Icon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="查询姓名" /></label>
       <div className="search-toolbar"><div className="filters"><div className="generation-picker"><button type="button" className="generation-picker-trigger" onClick={() => setDepthOpen((open) => !open)}>{depth ? generationLabel(Number(depth)) : '全部世系'}<Icon name="chevron" size={16} /></button>{depthOpen && <div className="generation-picker-menu">{[['', '全部世系'], ...Array.from({ length: sourceMeta.maxDepth }, (_, index) => [String(index + 1), generationLabel(index + 1)])].map(([value, label]) => <button type="button" key={value || 'all'} className={depth === value ? 'active' : ''} onClick={() => { setDepth(value); setDepthOpen(false) }}>{label}</button>)}</div>}</div></div><p className="sample-note">共 {filtered.length} 人</p></div></div>
-      <div className="result-list">{filtered.map((node) => <button key={node.id} onClick={() => go('node', node.id)}><span className="avatar">李</span><div><b>{formatPersonName(node.title)}</b><small>{generationLabel(node.depth)}</small></div><Icon name="chevron" /></button>)}{filtered.length === 0 && <p className="empty">没有符合条件的成员</p>}</div>
+      <div className="search-result-groups">{groupedResults.map(([generation, members]) => <section className="search-result-group" key={generation}><h2>{generationLabel(generation)}<small>{members.length} 人</small></h2><div className="result-list">{members.map((node) => <button key={node.id} onClick={() => go('node', node.id)}><span className="avatar">李</span><div><b>{formatPersonName(node.title)}</b><small>{generationLabel(node.depth)}</small></div><Icon name="chevron" /></button>)}</div></section>)}{filtered.length === 0 && <p className="empty">没有符合条件的成员</p>}</div>
     </div><BottomNav active="search" go={go} />
   </PageFrame>
 }
@@ -308,6 +579,49 @@ function TreePage({ go }) {
     applyViewTransform()
     if (animate) focusAnimationTimerRef.current = window.setTimeout(() => { if (treeStageRef.current) treeStageRef.current.style.transition = 'none' }, 280)
   }
+  const fitTreeNode = (nodeId) => {
+    const viewport = treeViewportRef.current
+    const stage = treeStageRef.current
+    if (!viewport || !stage) return
+
+    const treeNode = Array.from(stage.querySelectorAll('[data-home-tree-node]'))
+      .find((element) => element.dataset.homeTreeNode === nodeId)
+    const ancestorCards = []
+    let ancestorNode = treeNode?.parentElement?.closest('[data-home-tree-node]')
+    while (ancestorNode) {
+      const ancestorCard = ancestorNode.firstElementChild
+      if (ancestorCard?.classList.contains('home-tree-card')) ancestorCards.push(ancestorCard)
+      ancestorNode = ancestorNode.parentElement?.closest('[data-home-tree-node]')
+    }
+    const cards = treeNode
+      ? [...ancestorCards.reverse(), treeNode.firstElementChild, ...Array.from(treeNode.querySelectorAll('.home-tree-children .home-tree-card'))].filter(Boolean)
+      : []
+    if (!treeNode || cards.length === 0) return
+
+    viewTransformRef.current = { scale: 1, x: 0, y: 0 }
+    stage.style.transition = 'none'
+    stage.style.transform = 'none'
+
+    const viewportBounds = viewport.getBoundingClientRect()
+    const stageBounds = stage.getBoundingClientRect()
+    const cardBounds = cards.map((card) => card.getBoundingClientRect())
+    const left = Math.min(...cardBounds.map((bounds) => bounds.left))
+    const right = Math.max(...cardBounds.map((bounds) => bounds.right))
+    const top = Math.min(...cardBounds.map((bounds) => bounds.top))
+    const bottom = Math.max(...cardBounds.map((bounds) => bounds.bottom))
+    const width = Math.max(1, right - left)
+    const height = Math.max(1, bottom - top)
+    const scale = Math.min(1, (viewportBounds.width - 24) / width, (viewportBounds.height - 20) / height)
+    const targetLeft = viewportBounds.left + (viewportBounds.width - width * scale) / 2
+    const targetTop = viewportBounds.top + 8
+
+    viewTransformRef.current = {
+      scale,
+      x: targetLeft - stageBounds.left - (left - stageBounds.left) * scale,
+      y: targetTop - stageBounds.top - (top - stageBounds.top) * scale,
+    }
+    applyViewTransform()
+  }
   useLayoutEffect(() => {
     const frame = requestAnimationFrame(() => centerTreeNode(genealogyTree.id))
     return () => cancelAnimationFrame(frame)
@@ -316,23 +630,24 @@ function TreePage({ go }) {
     const nodeId = pendingFocusIdRef.current
     if (!nodeId) return undefined
     pendingFocusIdRef.current = null
-    const frame = requestAnimationFrame(() => centerTreeNode(nodeId, true))
+    const frame = requestAnimationFrame(() => fitTreeNode(nodeId))
     return () => cancelAnimationFrame(frame)
-  }, [expandedIds])
+  }, [expandedIds, focusedNodeId])
   useEffect(() => () => { if (focusAnimationTimerRef.current) window.clearTimeout(focusAnimationTimerRef.current) }, [])
   const focusGeneration = (generation) => {
     setActiveGeneration(generation)
     const targetNode = sourceNodes.find((node) => node.depth === generation)
     if (targetNode) {
+      pendingFocusIdRef.current = targetNode.id
       setFocusedNodeId(targetNode.id)
       setExpandedIds(new Set(sourceNodes.filter((node) => node.depth < generation && node.childIds.length > 0).map((node) => node.id)))
     }
   }
   const toggleNode = (id, generation, centerAfterExpand) => {
-    if (centerAfterExpand) pendingFocusIdRef.current = id
+    const node = genealogyNodeMap.get(id)
+    pendingFocusIdRef.current = centerAfterExpand ? id : (node?.parentId || genealogyTree.id)
     setExpandedIds((current) => {
       const next = new Set(current)
-      const node = genealogyNodeMap.get(id)
       const ids = generation >= 19 && node ? collectBranchIds(node) : [id]
       if (next.has(id)) ids.forEach((branchId) => next.delete(branchId))
       else ids.forEach((branchId) => next.add(branchId))
@@ -342,6 +657,7 @@ function TreePage({ go }) {
   const focusNode = (nodeId) => {
     const node = sourceNodeMap.get(nodeId)
     if (!node) return
+    pendingFocusIdRef.current = node.id
     setFocusedNodeId(node.id)
     setActiveGeneration(node.depth)
   }
@@ -379,21 +695,30 @@ function TreePage({ go }) {
     applyViewTransform()
   }
   const resetGesture = () => { gestureRef.current = null }
-  return <PageFrame className="tree-page-shell full-tree-page"><Header title={sourceMeta.mapTitle} hideBack /><div className="page-content full-tree"><GenerationRuleNote /><div ref={treeViewportRef} className="home-tree-viewport" onTouchStart={handleTreeTouchStart} onTouchMove={handleTreeTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture}><div ref={treeStageRef} className="home-tree-stage"><div className="home-tree"><HomeTreeNode node={genealogyTree} generation={1} generationLimit={generationLimit} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={focusNode} /></div></div></div></div><BottomNav active="home" go={go} /></PageFrame>
+  return <PageFrame className="tree-page-shell full-tree-page"><Header title={sourceMeta.mapTitle} hideBack /><div className="page-content full-tree"><GenerationRuleNote /><div ref={treeViewportRef} className="home-tree-viewport" onTouchStart={handleTreeTouchStart} onTouchMove={handleTreeTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture}><div ref={treeStageRef} className="home-tree-stage"><div className="home-tree"><HomeTreeNode node={genealogyTree} generation={1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={focusNode} toggleOnName rawName /></div></div></div></div><BottomNav active="home" go={go} /></PageFrame>
 }
-function HomeTreeNode({ node, generation, generationLimit, expandedIds, onToggle, onFocusNode, inheritedMigration }) {
+function HomeTreeNode({ node, generation, generationLimit, focusedNodeId, expandedIds, onToggle, onFocusNode, inheritedMigration, bulkExpandFromGeneration, branchHighlightFrom, branchHighlightTo, toggleOnName = false, toggleOnGeneration = false, reverseChildren = false, rawName = false }) {
   const hasChildren = node.children.length > 0
   const hasVisibleChildren = hasChildren && generation < generationLimit
   const isExpanded = expandedIds.has(node.id)
   const childrenRef = useRef(null)
   const migration = migrationByName.get(node.title.trim())
   const branchMigration = migration || inheritedMigration
+  const isBranchDepthHighlight = branchHighlightFrom != null && generation >= branchHighlightFrom && generation <= branchHighlightTo
   const style = { '--generation-color': generationColor(generation), '--person-arrow-color': branchMigration ? '#813a65' : '#b84c35' }
   const focusNode = () => onFocusNode?.(node.id)
   const toggleNode = (event) => {
+    event.preventDefault()
     event.stopPropagation()
     focusNode()
     onToggle(node.id, generation, !isExpanded)
+  }
+  const handleNameClick = (event) => {
+    if ((toggleOnName || focusedNodeId === node.id || (bulkExpandFromGeneration && generation >= bulkExpandFromGeneration)) && hasVisibleChildren) toggleNode(event)
+    else focusNode()
+  }
+  const handleGenerationClick = (event) => {
+    if (toggleOnGeneration && generation >= 20 && hasVisibleChildren) toggleNode(event)
   }
   useLayoutEffect(() => {
     const children = childrenRef.current
@@ -419,14 +744,15 @@ function HomeTreeNode({ node, generation, generationLimit, expandedIds, onToggle
     Array.from(children.children).forEach((child) => resizeObserver.observe(child))
     return () => resizeObserver.disconnect()
   }, [hasVisibleChildren, isExpanded, node.children.length, node.id])
-  return <div data-home-tree-node={node.id} data-tree-generation={generation} className={`home-tree-node ${isExpanded ? 'is-expanded' : ''}`} style={style}>
+  const children = reverseChildren ? [...node.children].reverse() : node.children
+  return <div data-home-tree-node={node.id} data-tree-generation={generation} className={`home-tree-node ${isExpanded ? 'is-expanded' : ''} ${focusedNodeId === node.id ? 'tree-family-focus' : ''}`} style={style}>
     <div className="home-tree-card">
-      <span className="tree-generation">{generationLabel(generation)}</span>
-      <button className={`tree-person-name ${branchMigration ? 'is-migrated' : ''}`} type="button" onClick={focusNode}>{node.title.trim()}{migration && <span className="tree-migration">（{migration}）</span>}</button>
+      {toggleOnGeneration && generation >= 20 ? <button className="tree-generation tree-generation-toggle" type="button" onClick={handleGenerationClick}>{generationLabel(generation)}</button> : <span className="tree-generation">{generationLabel(generation)}</span>}
+      <button className={`tree-person-name ${branchMigration ? 'is-migrated' : ''} ${isBranchDepthHighlight ? 'branch-depth-highlight' : ''}`} type="button" onClick={handleNameClick}>{rawName ? node.title.trim() : formatPersonName(node.title)}{migration && <span className="tree-migration">（{migration}）</span>}</button>
       {hasVisibleChildren ? <sup className="tree-descendant-count">{node.children.length}</sup> : null}
       {hasVisibleChildren ? <button className={`tree-toggle-button ${isExpanded ? 'is-collapse' : 'is-expand'}`} type="button" aria-label={`${formatPersonName(node.title)}后代`} onClick={toggleNode}>{isExpanded ? '-' : '+ 展开'}</button> : null}
     </div>
-    {hasVisibleChildren && isExpanded ? <div ref={childrenRef} className={`home-tree-children ${node.children.length === 1 ? 'is-single-child' : ''}`}>{node.children.map((child) => <HomeTreeNode key={child.id} node={child} generation={generation + 1} generationLimit={generationLimit} expandedIds={expandedIds} onToggle={onToggle} onFocusNode={onFocusNode} inheritedMigration={branchMigration} />)}</div> : null}
+    {hasVisibleChildren && isExpanded ? <div ref={childrenRef} className={`home-tree-children ${node.children.length === 1 ? 'is-single-child' : ''}`}>{children.map((child) => <HomeTreeNode key={child.id} node={child} generation={generation + 1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} expandedIds={expandedIds} onToggle={onToggle} onFocusNode={onFocusNode} inheritedMigration={branchMigration} bulkExpandFromGeneration={bulkExpandFromGeneration} branchHighlightFrom={branchHighlightFrom} branchHighlightTo={branchHighlightTo} toggleOnName={toggleOnName} toggleOnGeneration={toggleOnGeneration} reverseChildren={reverseChildren} rawName={rawName} />)}</div> : null}
   </div>
 }
 function TreeNode({ node, generation, generationLimit, focusedNodeId, inheritedMigration, expandedIds, onToggle, onFocusNode, bulkExpandFromGeneration, branchHighlightFrom, branchHighlightTo, toggleOnName, toggleOnGeneration, reverseChildren = true, rawName = false }) {
