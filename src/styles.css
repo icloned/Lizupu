@@ -433,6 +433,12 @@ button { color: var(--button-ink); }
   overflow: hidden;
   touch-action: none;
   user-select: none;
+  cursor: grab;
+}
+.home-tree-viewport:active,
+.branch-tree-viewport:active,
+.person-tree-viewport:active {
+  cursor: grabbing;
 }
 .home-tree-stage {
   width: max-content;
@@ -486,6 +492,7 @@ button { color: var(--button-ink); }
   overflow: hidden;
   touch-action: none;
   user-select: none;
+  cursor: grab;
 }
 .branch-tree-stage {
   width: max-content;
@@ -502,6 +509,7 @@ button { color: var(--button-ink); }
   overscroll-behavior: contain;
   touch-action: none;
   user-select: none;
+  cursor: grab;
 }
 .person-tree-stage {
   width: max-content;

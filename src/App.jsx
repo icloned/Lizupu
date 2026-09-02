@@ -76,6 +76,16 @@ const migrationByName = new Map([
 const touchDistance = (touches) => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY)
 
 const touchMidpoint = (touches) => ({ x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 })
+const clampTreeScale = (scale) => Math.min(1.45, Math.max(.25, scale))
+const zoomTreeAtPoint = (viewport, view, clientX, clientY, scale) => {
+  const bounds = viewport.getBoundingClientRect()
+  const pointX = clientX - bounds.left
+  const pointY = clientY - bounds.top
+  const contentX = (pointX - view.x) / view.scale
+  const contentY = (pointY - view.y) / view.scale
+  return { scale, x: pointX - contentX * scale, y: pointY - contentY * scale }
+}
+const isTreeInteractiveTarget = (target) => Boolean(target.closest?.('button, summary, a, input, select, textarea'))
 
 const Icon = ({ name, size = 20 }) => {
   const paths = {
@@ -252,7 +262,7 @@ function BranchesPage({ go }) {
     }
     if (gesture.type !== 'pinch' || event.touches.length !== 2) return
     const midpoint = touchMidpoint(event.touches)
-    const scale = Math.min(1.45, Math.max(.25, gesture.scale * (touchDistance(event.touches) / gesture.distance)))
+    const scale = clampTreeScale(gesture.scale * (touchDistance(event.touches) / gesture.distance))
     const bounds = viewport.getBoundingClientRect()
     const startX = gesture.midpoint.x - bounds.left
     const startY = gesture.midpoint.y - bounds.top
@@ -261,6 +271,28 @@ function BranchesPage({ go }) {
     const contentX = (startX - gesture.x) / gesture.scale
     const contentY = (startY - gesture.y) / gesture.scale
     branchTransformRef.current = { scale, x: currentX - contentX * scale, y: currentY - contentY * scale }
+    applyBranchTransform()
+  }
+  const handleBranchPointerDown = (event) => {
+    if (event.pointerType !== 'mouse' || event.button !== 0 || isTreeInteractiveTarget(event.target)) return
+    if (branchStageRef.current) branchStageRef.current.style.transition = 'none'
+    branchGestureRef.current = { type: 'mouse-pan', point: { x: event.clientX, y: event.clientY }, ...branchTransformRef.current }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+  const handleBranchPointerMove = (event) => {
+    const gesture = branchGestureRef.current
+    if (!gesture || gesture.type !== 'mouse-pan') return
+    event.preventDefault()
+    branchTransformRef.current = { scale: gesture.scale, x: gesture.x + event.clientX - gesture.point.x, y: gesture.y + event.clientY - gesture.point.y }
+    applyBranchTransform()
+  }
+  const handleBranchWheel = (event) => {
+    const viewport = branchViewportRef.current
+    if (!viewport) return
+    event.preventDefault()
+    const view = branchTransformRef.current
+    const scale = clampTreeScale(view.scale * Math.exp(-event.deltaY * .001))
+    branchTransformRef.current = zoomTreeAtPoint(viewport, view, event.clientX, event.clientY, scale)
     applyBranchTransform()
   }
   const resetBranchGesture = () => { branchGestureRef.current = null }
@@ -312,7 +344,7 @@ function BranchesPage({ go }) {
       <div className="branch-overview-tab"><button className={isOverview ? 'active' : ''} onClick={() => setSelectedBranchId(null)} role="tab" aria-selected={isOverview}>总世系</button></div>
       <div className="branch-generation-tabs">{[...fifteenthGenerationNodes].reverse().map((node) => <button key={node.id} className={selectedBranchId === node.id ? 'active' : ''} onClick={() => setSelectedBranchId(node.id)} role="tab" aria-selected={selectedBranchId === node.id}>{formatPrimaryName(node.title)}</button>)}</div>
     </div><div className="branch-scroll-hint">← 左右滑动查看更多 →</div><div className="branch-lineage-path" aria-label="当前支系直系">{directLineage.map((node, index) => <span key={node.id} className={index === directLineage.length - 1 ? 'current' : ''}>{formatPrimaryName(node.title).replace(/[{}]/g, '')}{index < directLineage.length - 1 && <b>›</b>}</span>)}</div>
-    <div className="page-content full-tree branch-tree"><img className="page-cultural-bg" src="/header-art/branches.png" alt="" aria-hidden="true" /><div ref={branchViewportRef} className="branch-tree-viewport" onTouchStart={handleBranchTouchStart} onTouchMove={handleBranchTouchMove} onTouchEnd={resetBranchGesture} onTouchCancel={resetBranchGesture}><div ref={branchStageRef} className="branch-tree-stage"><div className="branch-highlight-box"><div className="home-tree"><HomeTreeNode node={branchRoot} generation={treeGeneration} generationLimit={treeLimit} focusedNodeId={branchRoot.id} expandedIds={expandedIds} onToggle={toggleBranchNode} onFocusNode={() => {}} bulkExpandFromGeneration={20} branchHighlightFrom={branchHighlightFrom} branchHighlightTo={branchHighlightTo} toggleOnName toggleOnGeneration={formatPrimaryName(branchRoot.title) === '长素'} /></div></div></div></div></div>
+    <div className="page-content full-tree branch-tree"><img className="page-cultural-bg" src="/header-art/branches.png" alt="" aria-hidden="true" /><div ref={branchViewportRef} className="branch-tree-viewport" onTouchStart={handleBranchTouchStart} onTouchMove={handleBranchTouchMove} onTouchEnd={resetBranchGesture} onTouchCancel={resetBranchGesture} onPointerDown={handleBranchPointerDown} onPointerMove={handleBranchPointerMove} onPointerUp={resetBranchGesture} onPointerCancel={resetBranchGesture} onWheel={handleBranchWheel}><div ref={branchStageRef} className="branch-tree-stage"><div className="branch-highlight-box"><div className="home-tree"><HomeTreeNode node={branchRoot} generation={treeGeneration} generationLimit={treeLimit} focusedNodeId={branchRoot.id} expandedIds={expandedIds} onToggle={toggleBranchNode} onFocusNode={() => {}} bulkExpandFromGeneration={20} branchHighlightFrom={branchHighlightFrom} branchHighlightTo={branchHighlightTo} toggleOnName toggleOnGeneration={formatPrimaryName(branchRoot.title) === '长素'} /></div></div></div></div></div>
     <BottomNav active="branches" go={go} />
   </PageFrame>
 }
@@ -456,7 +488,7 @@ function BloodlineTree({ current, parent, children, go }) {
     }
     if (gesture.type !== 'pinch' || event.touches.length !== 2) return
     const midpoint = touchMidpoint(event.touches)
-    const scale = Math.min(1.45, Math.max(.25, gesture.scale * (touchDistance(event.touches) / gesture.distance)))
+    const scale = clampTreeScale(gesture.scale * (touchDistance(event.touches) / gesture.distance))
     const bounds = viewport.getBoundingClientRect()
     const startX = gesture.midpoint.x - bounds.left
     const startY = gesture.midpoint.y - bounds.top
@@ -467,8 +499,30 @@ function BloodlineTree({ current, parent, children, go }) {
     transformRef.current = { scale, x: currentX - contentX * scale, y: currentY - contentY * scale }
     applyTransform()
   }
+  const handlePersonPointerDown = (event) => {
+    if (event.pointerType !== 'mouse' || event.button !== 0 || isTreeInteractiveTarget(event.target)) return
+    if (stageRef.current) stageRef.current.style.transition = 'none'
+    gestureRef.current = { type: 'mouse-pan', point: { x: event.clientX, y: event.clientY }, ...transformRef.current }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+  const handlePersonPointerMove = (event) => {
+    const gesture = gestureRef.current
+    if (!gesture || gesture.type !== 'mouse-pan') return
+    event.preventDefault()
+    transformRef.current = { scale: gesture.scale, x: gesture.x + event.clientX - gesture.point.x, y: gesture.y + event.clientY - gesture.point.y }
+    applyTransform()
+  }
+  const handlePersonWheel = (event) => {
+    const viewport = viewportRef.current
+    if (!viewport) return
+    event.preventDefault()
+    const view = transformRef.current
+    const scale = clampTreeScale(view.scale * Math.exp(-event.deltaY * .001))
+    transformRef.current = zoomTreeAtPoint(viewport, view, event.clientX, event.clientY, scale)
+    applyTransform()
+  }
   const resetGesture = () => { gestureRef.current = null }
-  return <div ref={viewportRef} className="person-tree-viewport" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture}><div ref={stageRef} className="person-tree-stage"><div className="full-tree person-window-tree"><div className="home-tree"><HomeTreeNode node={root || current} generation={rootGeneration} generationLimit={current.depth + 2} focusedNodeId={current.id} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={(nodeId) => go('node', nodeId)} /></div></div></div></div>
+  return <div ref={viewportRef} className="person-tree-viewport" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture} onPointerDown={handlePersonPointerDown} onPointerMove={handlePersonPointerMove} onPointerUp={resetGesture} onPointerCancel={resetGesture} onWheel={handlePersonWheel}><div ref={stageRef} className="person-tree-stage"><div className="full-tree person-window-tree"><div className="home-tree"><HomeTreeNode node={root || current} generation={rootGeneration} generationLimit={current.depth + 2} focusedNodeId={current.id} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={(nodeId) => go('node', nodeId)} /></div></div></div></div>
 }
 
 function SearchPage({ go }) {
@@ -669,7 +723,7 @@ function TreePage({ go }) {
   }
   const toggleNode = (id, generation, centerAfterExpand) => {
     const node = genealogyNodeMap.get(id)
-    pendingFocusIdRef.current = centerAfterExpand ? id : (node?.parentId || genealogyTree.id)
+    pendingFocusIdRef.current = id
     setExpandedIds((current) => {
       const next = new Set(current)
       const ids = generation >= 19 && node ? collectBranchIds(node) : [id]
@@ -707,7 +761,7 @@ function TreePage({ go }) {
     }
     if (gesture.type !== 'pinch' || event.touches.length !== 2) return
     const midpoint = touchMidpoint(event.touches)
-    const scale = Math.min(1.45, Math.max(.25, gesture.scale * (touchDistance(event.touches) / gesture.distance)))
+    const scale = clampTreeScale(gesture.scale * (touchDistance(event.touches) / gesture.distance))
     const bounds = viewport.getBoundingClientRect()
     const startX = gesture.midpoint.x - bounds.left
     const startY = gesture.midpoint.y - bounds.top
@@ -718,8 +772,30 @@ function TreePage({ go }) {
     viewTransformRef.current = { scale, x: currentX - contentX * scale, y: currentY - contentY * scale }
     applyViewTransform()
   }
+  const handleTreePointerDown = (event) => {
+    if (event.pointerType !== 'mouse' || event.button !== 0 || isTreeInteractiveTarget(event.target)) return
+    if (treeStageRef.current) treeStageRef.current.style.transition = 'none'
+    gestureRef.current = { type: 'mouse-pan', point: { x: event.clientX, y: event.clientY }, ...viewTransformRef.current }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+  const handleTreePointerMove = (event) => {
+    const gesture = gestureRef.current
+    if (!gesture || gesture.type !== 'mouse-pan') return
+    event.preventDefault()
+    viewTransformRef.current = { scale: gesture.scale, x: gesture.x + event.clientX - gesture.point.x, y: gesture.y + event.clientY - gesture.point.y }
+    applyViewTransform()
+  }
+  const handleTreeWheel = (event) => {
+    const viewport = treeViewportRef.current
+    if (!viewport) return
+    event.preventDefault()
+    const view = viewTransformRef.current
+    const scale = clampTreeScale(view.scale * Math.exp(-event.deltaY * .001))
+    viewTransformRef.current = zoomTreeAtPoint(viewport, view, event.clientX, event.clientY, scale)
+    applyViewTransform()
+  }
   const resetGesture = () => { gestureRef.current = null }
-  return <PageFrame className="tree-page-shell full-tree-page"><Header title={sourceMeta.mapTitle} hideBack /><div className="page-content full-tree"><img className="page-cultural-bg" src="./header-art/full-tree.png" alt="" aria-hidden="true" /><GenerationRuleNote /><div ref={treeViewportRef} className="home-tree-viewport" onTouchStart={handleTreeTouchStart} onTouchMove={handleTreeTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture}><div ref={treeStageRef} className="home-tree-stage"><div className="home-tree"><HomeTreeNode node={genealogyTree} generation={1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={focusNode} toggleOnName rawName /></div></div></div></div><BottomNav active="home" go={go} /></PageFrame>
+  return <PageFrame className="tree-page-shell full-tree-page"><Header title={sourceMeta.mapTitle} hideBack /><div className="page-content full-tree"><img className="page-cultural-bg" src="./header-art/full-tree.png" alt="" aria-hidden="true" /><GenerationRuleNote /><div ref={treeViewportRef} className="home-tree-viewport" onTouchStart={handleTreeTouchStart} onTouchMove={handleTreeTouchMove} onTouchEnd={resetGesture} onTouchCancel={resetGesture} onPointerDown={handleTreePointerDown} onPointerMove={handleTreePointerMove} onPointerUp={resetGesture} onPointerCancel={resetGesture} onWheel={handleTreeWheel}><div ref={treeStageRef} className="home-tree-stage"><div className="home-tree"><HomeTreeNode node={genealogyTree} generation={1} generationLimit={generationLimit} focusedNodeId={focusedNodeId} expandedIds={expandedIds} onToggle={toggleNode} onFocusNode={focusNode} toggleOnName rawName /></div></div></div></div><BottomNav active="home" go={go} /></PageFrame>
 }
 function HomeTreeNode({ node, generation, generationLimit, focusedNodeId, expandedIds, onToggle, onFocusNode, inheritedMigration, bulkExpandFromGeneration, branchHighlightFrom, branchHighlightTo, toggleOnName = false, toggleOnGeneration = false, reverseChildren = false, rawName = false }) {
   const hasChildren = node.children.length > 0
